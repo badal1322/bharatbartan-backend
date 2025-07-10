@@ -126,6 +126,29 @@ app.post("/api/order", async (req, res) => {
   await newOrder.save();
   res.send({ message: "Order saved successfully" });
 });
+
+// Save guest/localStorage-based orders to the database
+app.post("/api/save-order", async (req, res) => {
+  try {
+    const { items, email, address } = req.body;
+
+    const totalAmount = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const productList = items.map(item => `${item.title} x${item.quantity}`);
+
+    const newOrder = new Order({
+      userEmail: email || "guest@bharatbartan.in",
+      productList,
+      totalAmount,
+      address: address || "Not Provided"
+    });
+
+    await newOrder.save();
+    res.json({ message: "Guest order saved successfully", orderId: newOrder._id });
+  } catch (err) {
+    console.error("Save order error:", err);
+    res.status(500).json({ error: "Failed to save order" });
+  }
+});
 app.get("/api/orders", async (req, res) => {
   const orders = await Order.find().sort({ createdAt: -1 });
   res.json(orders);
