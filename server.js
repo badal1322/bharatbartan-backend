@@ -14,10 +14,13 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-mongoose.connect("mongodb://localhost:27017/bharatbazaar", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-});
+// mongoose.connect("mongodb://localhost:27017/bharatbazaar", {
+//   useNewUrlParser: true,
+//   useUnifiedTopology: true
+// });
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.error("MongoDB connection error:", err));
 
 const User = mongoose.model("User", new mongoose.Schema({
   googleId: String,
