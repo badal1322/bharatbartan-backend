@@ -162,7 +162,70 @@ app.put("/api/orders/:id/status", async (req, res) => {
   res.json({ message: "Status updated" });
 });
 
+
 const RAZORPAY_SECRET = process.env.RAZORPAY_SECRET;
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
+
+
+const Razorpay = require("razorpay");
+const razorpay = new Razorpay({
+  key_id: RAZORPAY_KEY_ID,
+  key_secret: RAZORPAY_SECRET
+});
+
+app.get("/api/get-razorpay-key", (req, res) => {
+  res.json({ key: RAZORPAY_KEY_ID });
+});
+
+app.post("/api/create-order", async (req, res) => {
+  try {
+    const { totalAmount } = req.body;
+    const order = await razorpay.orders.create({
+      amount: totalAmount * 100,
+      currency: "INR",
+      receipt: "receipt_order_" + Math.random().toString(36).substring(7)
+    });
+    res.json({ orderId: order.id, amount: order.amount, currency: order.currency });
+  } catch (error) {
+    console.error("Order creation error:", error);
+    res.status(500).json({ error: "Failed to create Razorpay order" });
+  }
+});
+
+app.post("/api/verify-payment", async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+  const generated_signature = crypto
+    .createHmac("sha256", RAZORPAY_SECRET)
+    .update(razorpay_order_id + "|" + razorpay_payment_id)
+    .digest("hex");
+
+  if (generated_signature === razorpay_signature) {
+    try {
+      const { email, address, items } = req.body;
+      const productList = items.map(item => `${item.title} x${item.quantity}`);
+      const totalAmount = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+      const newOrder = new Order({
+        razorpayPaymentId: razorpay_payment_id,
+        razorpayOrderId: razorpay_order_id,
+        userEmail: email || "guest@bharatbartan.in",
+        productList,
+        totalAmount,
+        address: address || "Not Provided",
+        status: "Paid"
+      });
+
+      await newOrder.save();
+      res.json({ verified: true, orderId: newOrder._id });
+    } catch (err) {
+      console.error("Order save error:", err);
+      res.status(500).json({ verified: true, error: "Payment verified but order save failed" });
+    }
+  } else {
+    res.json({ verified: false });
+  }
+});
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
